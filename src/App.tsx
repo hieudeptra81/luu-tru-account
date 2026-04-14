@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, LogOut, KeyRound, Search } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useAccounts } from './hooks/useAccounts';
@@ -10,10 +10,11 @@ import type { ToastMessage } from './lib/types';
 
 function App() {
   const { user, loading: authLoading, signIn, signUp, signOut } = useAuth();
-  const { accounts, loading, addAccount, deleteAccount, toggleLoggedIn } = useAccounts(user);
+  const { accounts, loading, addAccount, deleteAccount, toggleLoggedIn, updateTitle } = useAccounts(user);
   const [showAddModal, setShowAddModal] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [search, setSearch] = useState('');
+  const scrollPositions = useRef<Record<string, number>>({});
 
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'success') => {
     const id = crypto.randomUUID();
@@ -38,6 +39,35 @@ function App() {
     const { error } = await toggleLoggedIn(id, is_logged_in);
     if (error) addToast('Failed to update status', 'error');
     else addToast(is_logged_in ? 'Marked as logged in' : 'Marked as logged out');
+  };
+
+  const handleUpdateTitle = async (id: string, title: string) => {
+    const { error } = await updateTitle(id, title);
+    if (error) addToast('Failed to update title', 'error');
+    else addToast('Title updated');
+    return { error };
+  };
+
+  const saveScrollPosition = useCallback(() => {
+    const scrollContainer = document.querySelector('main');
+    if (scrollContainer) {
+      scrollPositions.current[search] = scrollContainer.scrollTop;
+    }
+  }, [search]);
+
+  const restoreScrollPosition = useCallback((searchKey: string) => {
+    const scrollContainer = document.querySelector('main');
+    if (scrollContainer && scrollPositions.current[searchKey] !== undefined) {
+      setTimeout(() => {
+        scrollContainer.scrollTop = scrollPositions.current[searchKey];
+      }, 0);
+    }
+  }, []);
+
+  const handleSearchChange = (value: string) => {
+    saveScrollPosition();
+    setSearch(value);
+    restoreScrollPosition(value);
   };
 
   if (authLoading) {
@@ -107,7 +137,7 @@ function App() {
               type="text"
               placeholder="Search accounts..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               className="bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors w-full sm:w-56"
             />
           </div>
@@ -127,6 +157,7 @@ function App() {
                 account={account}
                 onDelete={handleDelete}
                 onToggleLoggedIn={handleToggleLoggedIn}
+                onUpdateTitle={handleUpdateTitle}
                 onCopy={handleCopy}
               />
             ))}

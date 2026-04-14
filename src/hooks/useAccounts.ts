@@ -51,5 +51,18 @@ export function useAccounts(user: User | null) {
     return { error };
   };
 
-  return { accounts, loading, addAccount, deleteAccount, toggleLoggedIn };
+  const updateTitle = async (id: string, title: string) => {
+    const { error } = await supabase
+      .from('accounts')
+      .update({ title })
+      .eq('id', id);
+    if (!error) {
+      setAccounts(prev =>
+        prev.map(a => (a.id === id ? { ...a, title } : a))
+      );
+    }
+    return { error };
+  };
+
+  return { accounts, loading, addAccount, deleteAccount, toggleLoggedIn, updateTitle };
 }

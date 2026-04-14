@@ -1,18 +1,23 @@
-import { useState } from 'react';
-import { Copy, Trash2, Eye, EyeOff, CheckCircle2, Check } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Copy, Trash2, Eye, EyeOff, CheckCircle2, Check, Pencil, X } from 'lucide-react';
 import type { Account } from '../lib/types';
 
 interface AccountCardProps {
   account: Account;
   onDelete: (id: string) => Promise<void>;
   onToggleLoggedIn: (id: string, is_logged_in: boolean) => Promise<void>;
+  onUpdateTitle: (id: string, title: string) => Promise<{ error: Error | null }>;
   onCopy: (text: string, label: string) => void;
 }
 
-export function AccountCard({ account, onDelete, onToggleLoggedIn, onCopy }: AccountCardProps) {
+export function AccountCard({ account, onDelete, onToggleLoggedIn, onUpdateTitle, onCopy }: AccountCardProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<'username' | 'password' | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(account.title);
+  const [savingTitle, setSavingTitle] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleCopy = async (text: string, field: 'username' | 'password') => {
     await navigator.clipboard.writeText(text);
@@ -25,6 +30,34 @@ export function AccountCard({ account, onDelete, onToggleLoggedIn, onCopy }: Acc
     setDeleting(true);
     await onDelete(account.id);
   };
+
+  const handleSaveTitle = async () => {
+    if (!editingTitle.trim()) {
+      setEditingTitle(account.title);
+      setIsEditingTitle(false);
+      return;
+    }
+    setSavingTitle(true);
+    const { error } = await onUpdateTitle(account.id, editingTitle.trim());
+    if (!error) {
+      setIsEditingTitle(false);
+    } else {
+      setEditingTitle(account.title);
+    }
+    setSavingTitle(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTitle(account.title);
+    setIsEditingTitle(false);
+  };
+
+  useEffect(() => {
+    if (isEditingTitle && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingTitle]);
 
   const initials = account.title.slice(0, 2).toUpperCase();
 
@@ -46,12 +79,51 @@ export function AccountCard({ account, onDelete, onToggleLoggedIn, onCopy }: Acc
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <h3 className="text-white font-semibold text-base leading-tight truncate">{account.title}</h3>
-            {account.is_logged_in && (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full shrink-0">
-                <Check size={10} strokeWidth={3} />
-                Logged in
-              </span>
+            {isEditingTitle ? (
+              <div className="flex items-center gap-1 flex-1">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editingTitle}
+                  onChange={e => setEditingTitle(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveTitle();
+                    if (e.key === 'Escape') handleCancelEdit();
+                  }}
+                  className="flex-1 bg-gray-800 border border-blue-500 rounded-lg px-2.5 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+                />
+                <button
+                  onClick={handleSaveTitle}
+                  disabled={savingTitle}
+                  className="p-1 text-emerald-400 hover:text-emerald-300 transition-colors shrink-0"
+                >
+                  <Check size={15} />
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={savingTitle}
+                  className="p-1 text-gray-500 hover:text-gray-300 transition-colors shrink-0"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-white font-semibold text-base leading-tight truncate">{account.title}</h3>
+                <button
+                  onClick={() => setIsEditingTitle(true)}
+                  className="p-1.5 text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors shrink-0"
+                  title="Edit title"
+                >
+                  <Pencil size={13} />
+                </button>
+                {account.is_logged_in && (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full shrink-0">
+                    <Check size={10} strokeWidth={3} />
+                    Logged in
+                  </span>
+                )}
+              </>
             )}
           </div>
 
