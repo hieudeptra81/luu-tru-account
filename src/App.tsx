@@ -15,6 +15,8 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [search, setSearch] = useState('');
   const scrollPositions = useRef<Record<string, number>>({});
+  const mainRef = useRef<HTMLDivElement>(null);
+  const isRestoringScroll = useRef(false);
 
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'success') => {
     const id = crypto.randomUUID();
@@ -49,26 +51,56 @@ function App() {
   };
 
   const saveScrollPosition = useCallback(() => {
-    const scrollContainer = document.querySelector('main');
-    if (scrollContainer) {
-      scrollPositions.current[search] = scrollContainer.scrollTop;
+    if (!isRestoringScroll.current && mainRef.current) {
+      scrollPositions.current[search] = mainRef.current.scrollTop;
     }
   }, [search]);
 
   const restoreScrollPosition = useCallback((searchKey: string) => {
-    const scrollContainer = document.querySelector('main');
-    if (scrollContainer && scrollPositions.current[searchKey] !== undefined) {
+    if (mainRef.current && scrollPositions.current[searchKey] !== undefined) {
+      isRestoringScroll.current = true;
+      mainRef.current.scrollTop = scrollPositions.current[searchKey];
       setTimeout(() => {
-        scrollContainer.scrollTop = scrollPositions.current[searchKey];
-      }, 0);
+        isRestoringScroll.current = false;
+      }, 50);
     }
   }, []);
 
   const handleSearchChange = (value: string) => {
     saveScrollPosition();
     setSearch(value);
-    restoreScrollPosition(value);
   };
+
+  useEffect(() => {
+    restoreScrollPosition(search);
+  }, [search, restoreScrollPosition]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        restoreScrollPosition(search);
+      } else {
+        saveScrollPosition();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [search, saveScrollPosition, restoreScrollPosition]);
+
+  useEffect(() => {
+    const scrollContainer = mainRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      if (!isRestoringScroll.current) {
+        scrollPositions.current[search] = scrollContainer.scrollTop;
+      }
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, [search]);
 
   if (authLoading) {
     return (
@@ -90,7 +122,7 @@ function App() {
   const loggedInCount = accounts.filter(a => a.is_logged_in).length;
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 flex flex-col">
       <header className="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -122,7 +154,7 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <main ref={mainRef} className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-2xl font-bold text-white">Your Accounts</h2>
